@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RECTRA — Tracker & Streak Log</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#0a0b12;color:#ece7ff;min-height:100vh}
+header{background:#0f1020;border-bottom:1px solid #23243a;padding:16px 24px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:5}
+.logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#b8860b,#f5d76e);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px}
+h1{font-size:19px;margin:0;color:#f5d76e}h1 small{color:#8b8a70;font-size:10px;display:block;letter-spacing:2px}
+.streak-band{margin-left:auto;display:flex;gap:8px;align-items:center}
+.streak-band .big{font-size:24px;color:#f5d76e;font-weight:800}
+.wrap{max-width:1060px;margin:0 auto;padding:24px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-bottom:22px}
+.counter{background:#0f1020;border:1px solid #23243a;border-radius:12px;padding:16px;text-align:center;transition:.15s}
+.counter.hot{border-color:#f5d76e;box-shadow:0 0 18px rgba(245,215,110,.12)}
+.counter .name{font-weight:700} 
+.counter .val{font-size:42px;font-weight:800;margin:10px 0;color:#fff;font-variant-numeric:tabular-nums}
+.counter .btns{display:flex;gap:8px;justify-content:center}
+.counter .btns button{flex:1;padding:8px 0;border-radius:8px;border:1px solid #23243a;background:#161731;color:#ece7ff;font-size:18px;font-weight:700;cursor:pointer}
+.counter .btns button:hover{background:#23244a}
+.counter .btns button:active{transform:scale(.96)}
+.counter .del{margin-top:8px;background:none;border:none;color:#5a4a15;cursor:pointer;font-size:12px}
+.counter .del:hover{color:#ff5d5d}
+.icon-btn{flex:1!important;font-size:12px!important}
+.panel{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:800px){.panel{grid-template-columns:1fr}}
+.card{background:#0f1020;border:1px solid #23243a;border-radius:12px;padding:18px}
+.card h2{margin:0 0 12px;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#8b8a70}
+.log{height:320px;overflow:auto;font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.8}
+.log .ent{display:flex;gap:10px;padding:3px 0;border-bottom:1px solid #1a1b2e}
+.log .t{color:#5a5b80}.log .n{color:#f5d76e;font-weight:700}.log .ct{color:#98e3ff}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.cal .day{aspect-ratio:1;border-radius:8px;background:#15162c;border:1px solid #23243a;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;color:#8b8a70}
+.cal .day.hit{background:#1c2a1c;border-color:#3a6d3a;color:#82dd82}.cal .day .d{color:#d8ffe8;font-size:12px;font-weight:700}
+.dayof{color:#5a5b80;font-size:9px}
+.controls{display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap}
+input{background:#0a0b12;border:1px solid #23243a;border-radius:8px;color:#ece7ff;padding:8px 12px;font-size:13px}
+input:focus{outline:none;border-color:#f5d76e}
+button{background:#161731;border:1px solid #23243a;color:#ece7ff;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:13px;font-weight:600}
+button:hover{background:#23244a}
+button.gold{background:linear-gradient(135deg,#8f6c00,#f5d76e);border-color:#f5d76e;color:#231a00}
+.empty{color:#5a5b80;text-align:center;padding:30px}
+.metric{display:inline-block;background:#141528;border:1px solid #23243a;border-radius:8px;padding:6px 12px;margin:3px;font-size:12px}
+.metric b{color:#f5d76e}
+</style></head>
+<body>
+<header><div class="logo">◆</div><h1>RECTRA<small>TRACKER & STREAK LOG</small></h1>
+<div class="streak-band"><span style="font-size:11px;color:#8b8a70">best streak</span><span class="big" id="bestStreak">0</span></div></header>
+<div class="wrap">
+<div class="controls">
+<input id="name" placeholder="Counter name…">
+<button class="gold" id="addBtn">Add Counter</button>
+<button id="resetAllBtn">Reset All</button>
+<span class="metric">hits today <b id="todayHits">0</b></span>
+</div>
+<div class="grid" id="grid"></div>
+<div class="panel">
+<div class="card">
+<h2>Streak Log</h2>
+<div id="log" class="log"><div class="empty">No events yet — press a counter.</div></div>
+</div>
+<div class="card">
+<h2>This Week</h2>
+<div class="cal" id="cal"></div>
+<div style="margin-top:14px;font-size:11px;color:#8b8a70">Each cell = events that day. Consecutive active days build your streak.</div>
+</div>
+</div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const KEY='rt_data2';
+const store=()=>{try{return JSON.parse(localStorage.getItem(KEY))||{counters:[],log:[],dir:'meta'}}catch{return{counters:[],log:[]}}};
+const save=()=>localStorage.setItem(KEY,JSON.stringify(data));
+let data=store();
+if(!data.counters.length&&!data.log.length){data.counters=[{name:'Laps',val:0},{name:'Kicks',val:0}];save();}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+const todayStr=()=>new Date().toISOString().slice(0,10);
+const fmt=t=>new Date(t).toISOString().slice(0,10);
+
+function bestStreak(){
+  const days=[...new Set(data.log.map(e=>fmt(e.t)))].sort();
+  let best=0,cur=0,last=null;
+  days.forEach(d=>{
+    if(last){const diff=(new Date(d)-new Date(last))/86400000;if(diff===1)cur++;else if(diff>1)cur=1;}
+    else cur=1;
+    best=Math.max(best,cur);last=d;
+  });
+  return best;
+}
+
+function hit(cIdx,delta){
+  const c=data.counters[cIdx];if(!c)return;
+  c.val=Math.max(0,c.val+delta);
+  const counterName=c.name;
+  data.log.push({t:Date.now(),p:delta>0?'+'+delta:''+delta,n:counterName});
+  if(data.log.length>240)data.log=data.log.slice(-240);
+  save();render();
+}
+
+function render(){
+  const g=$('grid');
+  if(!data.counters.length){g.innerHTML='<div class="empty">No counters — add one above.</div>';}
+  else g.innerHTML=data.counters.map((c,i)=>`<div class="counter${c.val>0?' hot':''}">
+<div class="name">${esc(c.name)}</div>
+<div class="val">${c.val}</div>
+<div class="btns">
+<button data-m="1" data-i="${i}">−</button>
+<button data-m="0" data-i="${i}">${c.val===0?'+':'++'}</button>
+<button data-m=".5" data-i="${i}">½</button>
+</div>
+<button class="del" data-i="${i}">delete</button>
+</div>`).join('');
+  const log=$('log');
+  if(!data.log.length)log.innerHTML='<div class="empty">No events yet.</div>';
+  else log.innerHTML=data.log.slice().reverse().map(e=>`<div class="ent"><span class="t">${new Date(e.t).toLocaleTimeString('en-GB',{hour12:false})}</span><span class="n">${esc(e.n||'counter')}</span><span class="ct">${esc(e.p)}</span></div>`).join('');
+  // calendar
+  const mon=new Date();mon.setDate(mon.getDate()-mon.getDay()+1);
+  const byDay={};
+  data.log.forEach(e=>{const d=fmt(e.t);byDay[d]=(byDay[d]||0)+1;});
+  let cal='';
+  ['M','T','W','T','F','S','S'].forEach((d,i)=>{cal+=`<div class="dayof">${d}</div>`;});
+  for(let i=0;i<7;i++){
+    const d=new Date(mon);d.setDate(mon.getDate()+i);
+    const ds=d.toISOString().slice(0,10);
+    const hits=byDay[ds]||0;
+    cal+=`<div class="day${hits?' hit':''}"><span class="d">${d.getDate()}</span>${hits?hits:''}</div>`;
+  }
+  $('cal').innerHTML=cal;
+  const today=data.log.filter(e=>fmt(e.t)===todayStr()).length;
+  $('todayHits').textContent=today;
+  $('bestStreak').textContent=bestStreak();
+}
+
+$('grid').onclick=e=>{
+  const del=e.target.closest('.del');
+  if(del){if(confirm('Delete counter?')){data.log=data.log.slice();data.counters.splice(+del.dataset.i,1);save();render();}return;}
+  const btn=e.target.closest('button[data-m]');
+  if(btn){hit(+btn.dataset.i,btn.dataset.m==='1'?-1:btn.dataset.m==='.5'?0.5:1);}
+};
+$('addBtn').onclick=()=>{const n=$('name').value.trim();if(!n){alert('Enter a counter name.');return;}data.counters.push({name:n,val:0});$('name').value='';save();render();};
+$('resetAllBtn').onclick=()=>{if(confirm('Reset all counters to 0?')){data.counters.forEach(c=>c.val=0);save();render();}};
+render();
+</script>
+</body></html>
